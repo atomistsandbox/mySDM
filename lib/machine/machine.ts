@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
+import {HandlerResult, NoParameters} from "@atomist/automation-client";
 import {
+    CommandHandlerRegistration,
+    CommandListenerInvocation,
     SoftwareDeliveryMachine,
     SoftwareDeliveryMachineConfiguration,
 } from "@atomist/sdm";
@@ -36,6 +39,7 @@ export function machine(
         configuration,
     });
 
+    sdm.addCommand(helloWorldCommand);
     /*
      * this is a good place to type
     sdm.
@@ -44,3 +48,25 @@ export function machine(
 
     return sdm;
 }
+
+export async function helloWorldListener(ci: CommandListenerInvocation<NoParameters>): Promise<void> {
+    return ci.addressChannels("Hello, world");
+}
+
+
+const helloWorldParametersDefinition = {
+    name: { description: "name",
+        required: true,
+        pattern: /.*/, },
+    location: {},
+};
+
+const helloWorldCommand: CommandHandlerRegistration<{ name: string, location: string }> = {
+    name: "HelloWorld",
+    description: "Responds with a friendly greeting to everyone",
+    intent: "hello",
+    parameters: helloWorldParametersDefinition,
+    listener: async ci => {
+        return ci.addressChannels(`Welcome to ${ci.parameters.location}, ${ci.parameters.name}`);
+    },
+};
