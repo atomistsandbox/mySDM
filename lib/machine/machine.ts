@@ -14,17 +14,23 @@
  * limitations under the License.
  */
 
-import {HandlerResult, NoParameters} from "@atomist/automation-client";
+import {GitHubRepoRef} from "@atomist/automation-client";
 import {
     CommandHandlerRegistration,
-    CommandListenerInvocation,
+    GeneratorRegistration,
     SoftwareDeliveryMachine,
     SoftwareDeliveryMachineConfiguration,
 } from "@atomist/sdm";
 import {
     createSoftwareDeliveryMachine,
 } from "@atomist/sdm-core";
-
+import {
+    ReplaceReadmeTitle,
+    SetAtomistTeamInApplicationYml,
+    SpringProjectCreationParameterDefinitions,
+    SpringProjectCreationParameters,
+    TransformSeedToCustomProject,
+} from "@atomist/sdm-pack-spring";
 /**
  * Initialize an sdm definition, and add functionality to it.
  *
@@ -46,18 +52,27 @@ export function machine(
      * and see what the IDE suggests for after the dot
      */
 
+    sdm.addGeneratorCommand(springSeedProjectGeneratorCommand);
     return sdm;
 }
 
-export async function helloWorldListener(ci: CommandListenerInvocation<NoParameters>): Promise<void> {
-    return ci.addressChannels("Hello, world");
-}
-
+const springSeedProjectGeneratorCommand: GeneratorRegistration<SpringProjectCreationParameters>  = {
+    name: "create-spring",
+    intent: "create spring",
+    description: "Create a new Java Spring Boot REST service",
+    parameters: SpringProjectCreationParameterDefinitions,
+    startingPoint: new GitHubRepoRef("atomist-seeds", "spring-rest-seed"),
+    transform: [
+        ReplaceReadmeTitle,
+        SetAtomistTeamInApplicationYml,
+        TransformSeedToCustomProject,
+    ],
+};
 
 const helloWorldParametersDefinition = {
     name: { description: "name",
         required: true,
-        pattern: /.*/, },
+        pattern: /.*/ },
     location: {},
 };
 
@@ -67,6 +82,6 @@ const helloWorldCommand: CommandHandlerRegistration<{ name: string, location: st
     intent: "hello",
     parameters: helloWorldParametersDefinition,
     listener: async ci => {
-        return ci.addressChannels(`Welcome to ${ci.parameters.location}, ${ci.parameters.name}`);
+        return ci.addressChannels(`Welcome to ${ci.parameters.location}, ${ci.parameters.name} `);
     },
 };
