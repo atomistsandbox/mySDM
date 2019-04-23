@@ -26,6 +26,8 @@
     "@atomist/automation-client": "1.3.1-master.20190326043055",
     "@atomist/sdm": "1.3.1-master.20190326042612",
     "@atomist/sdm-core": "1.3.1-master.20190323165808",
+    "@atomist/sdm-pack-build": "^1.0.4",
+    "@atomist/sdm-pack-issue": "^1.2.2",
     "@atomist/sdm-pack-spring": "latest"
   },
   "devDependencies": {

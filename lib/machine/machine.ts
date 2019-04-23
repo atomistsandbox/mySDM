@@ -15,22 +15,24 @@
  */
 
 import {GitHubRepoRef} from "@atomist/automation-client";
+import {AutoMergeMethod, AutoMergeMode, BranchCommit} from "@atomist/automation-client/lib/operations/edit/editModes";
 import {
+    CodeTransform,
     CommandHandlerRegistration,
-    GeneratorRegistration,
+    GeneratorRegistration, goalContributors, goals, HasTravisFile,
     SoftwareDeliveryMachine,
-    SoftwareDeliveryMachineConfiguration,
+    SoftwareDeliveryMachineConfiguration, whenPushSatisfies,
 } from "@atomist/sdm";
 import {
-    createSoftwareDeliveryMachine,
-} from "@atomist/sdm-core";
+    createSoftwareDeliveryMachine} from "@atomist/sdm-core";
+import {Build} from "@atomist/sdm-pack-build";
 import {
     ReplaceReadmeTitle,
     SetAtomistTeamInApplicationYml,
     SpringProjectCreationParameterDefinitions,
-    SpringProjectCreationParameters,
-    TransformSeedToCustomProject,
+    SpringProjectCreationParameters, TransformSeedToCustomProject,
 } from "@atomist/sdm-pack-spring";
+
 /**
  * Initialize an sdm definition, and add functionality to it.
  *
@@ -41,18 +43,62 @@ export function machine(
 ): SoftwareDeliveryMachine {
 
     const sdm = createSoftwareDeliveryMachine({
-        name: "Empty Seed Software Delivery Machine",
+        name: "My Little Software Delivery Machine",
         configuration,
     });
 
     sdm.addCommand(helloWorldCommand);
-    /*
-     * this is a good place to type
-    sdm.
-     * and see what the IDE suggests for after the dot
-     */
-
     sdm.addGeneratorCommand(springSeedProjectGeneratorCommand);
+
+    const build = new Build().with({
+        externalTool: "travis",
+    });
+
+    // const autofixGoal = new Autofix();
+    // const pushReactionGoal = new PushImpact();
+    // const artifactGoal = new Artifact();
+    // const codeInspectionGoal = new AutoCodeInspection();
+    // const BuildGoals = goals("build").and(autofixGoal).and(codeInspectionGoal)
+    //     .plan(build);
+
+    const BuildGoals = goals("build").plan(build);
+
+    sdm.addGoalContributions(goalContributors(
+        whenPushSatisfies(HasTravisFile).setGoals(BuildGoals),
+    ));
+
+    sdm.addCodeTransformCommand({
+        name: "Add Travis YML",
+        intent: "add travis yml",
+        transform: AddTravisFile(sdm.configuration.workspaceIds),
+        transformPresentation: () => {
+            const pr: BranchCommit = {
+                message: "Add .travis.yml file",
+                branch: "travis-yml",
+                autoMerge: {
+                    mode: AutoMergeMode.SuccessfulCheck,
+                    method: AutoMergeMethod.Squash,
+                },
+            };
+            return pr;
+        },
+    });
+
+    // sdm.addExtensionPacks(
+    //     springSupport({
+    //         review: {
+    //             springStyle: true,
+    //             cloudNative: true,
+    //         },
+    //         autofix: {
+    //             springStyle: true,
+    //         },
+    //         inspectGoal: codeInspectionGoal,
+    //         autofixGoal,
+    //         reviewListeners:  isInLocalMode() ? [] : [
+    //             singleIssuePerCategoryManaging("sdm-pack-spring")],
+    //     }),
+    // );
     return sdm;
 }
 
@@ -85,3 +131,21 @@ const helloWorldCommand: CommandHandlerRegistration<{ name: string, location: st
         return ci.addressChannels(`Welcome to ${ci.parameters.location}, ${ci.parameters.name} `);
     },
 };
+
+function AddTravisFile(workspaceIds: string[]): CodeTransform {
+    const TravisYAML = `language: java
+notifications:
+  webhooks:
+    urls:
+${ workspaceIds.map(id => "      - https://webhook.atomist.com/atomist/travis/teams/" + id).join("\n") }
+    on_success: always
+    on_failure: always
+    on_start: always
+    on_cancel: always
+    on_error: always
+`;
+
+    return p => {
+        return p.addFile(".travis.yml", TravisYAML);
+    };
+}
