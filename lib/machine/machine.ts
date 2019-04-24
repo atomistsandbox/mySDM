@@ -32,6 +32,7 @@ import {
     SpringProjectCreationParameterDefinitions,
     SpringProjectCreationParameters, TransformSeedToCustomProject,
 } from "@atomist/sdm-pack-spring";
+import {reportValuesCommand} from "./reportValuesCommand";
 
 /**
  * Initialize an sdm definition, and add functionality to it.
@@ -48,6 +49,7 @@ export function machine(
     });
 
     sdm.addCommand(helloWorldCommand);
+    sdm.addCommand(reportValuesCommand);
     sdm.addGeneratorCommand(springSeedProjectGeneratorCommand);
 
     const build = new Build().with({
