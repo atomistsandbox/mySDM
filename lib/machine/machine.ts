@@ -14,16 +14,13 @@
  * limitations under the License.
  */
 
-import {DefaultHttpClientFactory, GitHubRepoRef, HttpMethod, MappedParameter, MappedParameters, Parameters} from "@atomist/automation-client";
-import {defaultConfiguration, getUserConfig} from "@atomist/automation-client/lib/configuration";
-import {AutoMergeMethod, AutoMergeMode, BranchCommit} from "@atomist/automation-client/lib/operations/edit/editModes";
+import {GitHubRepoRef} from "@atomist/automation-client";
 import {
-    CodeTransform,
-    CommandHandlerRegistration,
-    GeneratorRegistration,
-    goalContributors,
-    goals,
-    HasTravisFile,
+    CommandHandlerRegistration, createGoal,
+    GeneratorRegistration, goal,
+    goalContributors, GoalInvocation,
+    goals, hasFile,
+    HasTravisFile, onAnyPush,
     SoftwareDeliveryMachine,
     SoftwareDeliveryMachineConfiguration,
     whenPushSatisfies,
@@ -37,7 +34,7 @@ import {
     SpringProjectCreationParameters,
     TransformSeedToCustomProject,
 } from "@atomist/sdm-pack-spring";
-import {AddRepositorySlug, addTravisCodeTransformation, AddTravisFile} from "./addTravisCodeTransformation";
+import {addTravisCodeTransformation} from "./addTravisCodeTransformation";
 import {reportValuesCommand} from "./reportValuesCommand";
 
 /**
@@ -57,6 +54,29 @@ export function machine(
     sdm.addCommand(helloWorldCommand);
     sdm.addCommand(reportValuesCommand);
     sdm.addGeneratorCommand(springSeedProjectGeneratorCommand);
+
+    const goal1 = createSleepGoal("Sleep goal 1", 2);
+    const goal2 = createSleepGoal("Sleep goal 2", 15);
+    const goal3 = createSleepGoal("Sleep goal 3", 2);
+    const goal4 = createSleepGoal("Sleep goal 4", 10);
+    const goal5 = createSleepGoal("Sleep goal 5", 10);
+    const goal6 = createSleepGoal("Sleep goal 6", 8);
+    const goal7 = createSleepGoal("Sleep goal 7", 12);
+    const goal8 = createSleepGoal("Sleep goal 8", 30);
+    const goal9 = createSleepGoal("app goal", 3);
+
+    const phase1 = goals("sleep goals phase 1")
+        .plan(goal1, goal2, goal8)
+        .plan(goal3).after(goal1, goal2)
+        .plan(goal4).after(goal3)
+
+    sdm.withPushRules(
+        whenPushSatisfies(hasFile(".travis.yml")).setGoals(goals("all sleep goals")
+            .plan(phase1)
+            .plan(goal5, goal6).after(phase1)
+            .plan(goal7).after(goal5)
+            .plan(goalWithApproval).after(goal8)
+            .plan(goal9).after(goalWithApproval)));
 
     const build = new Build().with({
         externalTool: "travis",
@@ -124,3 +144,24 @@ const helloWorldCommand: CommandHandlerRegistration<{ name: string, location: st
         return ci.addressChannels(`Welcome to ${ci.parameters.location}, ${ci.parameters.name} `);
     },
 };
+
+const createSleepGoal = (name: string, sleepInSeconds: number = 5) => {
+    return goal({
+        displayName: name,
+    }, async (inv: GoalInvocation) => {
+        await timeout(sleepInSeconds * 1000);
+    });
+};
+
+// helper function to create a timeout Promise
+const timeout = (ms: number) => {
+    return new Promise(resolve => setTimeout(resolve, ms));
+};
+
+const goalWithApproval = createGoal({
+    displayName: `approve me`,
+    approvalRequired: true,
+    waitingForApprovalDescription: "Please click to approve",
+}, async (inv: GoalInvocation) => {
+    await timeout(1 * 1000);
+});
