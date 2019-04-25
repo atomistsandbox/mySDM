@@ -14,24 +14,30 @@
  * limitations under the License.
  */
 
-import {GitHubRepoRef} from "@atomist/automation-client";
+import {DefaultHttpClientFactory, GitHubRepoRef, HttpMethod, MappedParameter, MappedParameters, Parameters} from "@atomist/automation-client";
+import {defaultConfiguration, getUserConfig} from "@atomist/automation-client/lib/configuration";
 import {AutoMergeMethod, AutoMergeMode, BranchCommit} from "@atomist/automation-client/lib/operations/edit/editModes";
 import {
     CodeTransform,
     CommandHandlerRegistration,
-    GeneratorRegistration, goalContributors, goals, HasTravisFile,
+    GeneratorRegistration,
+    goalContributors,
+    goals,
+    HasTravisFile,
     SoftwareDeliveryMachine,
-    SoftwareDeliveryMachineConfiguration, whenPushSatisfies,
+    SoftwareDeliveryMachineConfiguration,
+    whenPushSatisfies,
 } from "@atomist/sdm";
-import {
-    createSoftwareDeliveryMachine} from "@atomist/sdm-core";
+import {createSoftwareDeliveryMachine} from "@atomist/sdm-core";
 import {Build} from "@atomist/sdm-pack-build";
 import {
     ReplaceReadmeTitle,
     SetAtomistTeamInApplicationYml,
     SpringProjectCreationParameterDefinitions,
-    SpringProjectCreationParameters, TransformSeedToCustomProject,
+    SpringProjectCreationParameters,
+    TransformSeedToCustomProject,
 } from "@atomist/sdm-pack-spring";
+import {AddRepositorySlug, addTravisCodeTransformation, AddTravisFile} from "./addTravisCodeTransformation";
 import {reportValuesCommand} from "./reportValuesCommand";
 
 /**
@@ -69,22 +75,7 @@ export function machine(
         whenPushSatisfies(HasTravisFile).setGoals(BuildGoals),
     ));
 
-    sdm.addCodeTransformCommand({
-        name: "Add Travis YML",
-        intent: "add travis yml",
-        transform: AddTravisFile(sdm.configuration.workspaceIds),
-        transformPresentation: () => {
-            const pr: BranchCommit = {
-                message: "Add .travis.yml file",
-                branch: "travis-yml",
-                autoMerge: {
-                    mode: AutoMergeMode.SuccessfulCheck,
-                    method: AutoMergeMethod.Squash,
-                },
-            };
-            return pr;
-        },
-    });
+    sdm.addCodeTransformCommand( addTravisCodeTransformation)
 
     // sdm.addExtensionPacks(
     //     springSupport({
@@ -133,21 +124,3 @@ const helloWorldCommand: CommandHandlerRegistration<{ name: string, location: st
         return ci.addressChannels(`Welcome to ${ci.parameters.location}, ${ci.parameters.name} `);
     },
 };
-
-function AddTravisFile(workspaceIds: string[]): CodeTransform {
-    const TravisYAML = `language: java
-notifications:
-  webhooks:
-    urls:
-${ workspaceIds.map(id => "      - https://webhook.atomist.com/atomist/travis/teams/" + id).join("\n") }
-    on_success: always
-    on_failure: always
-    on_start: always
-    on_cancel: always
-    on_error: always
-`;
-
-    return p => {
-        return p.addFile(".travis.yml", TravisYAML);
-    };
-}
